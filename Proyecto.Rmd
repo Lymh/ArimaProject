@@ -1,0 +1,142 @@
+---
+title: "Proyecto"
+author: "Lymh Joshua Morales Chin, José Solano Córdoba"
+date: "2/26/2021"
+knit: (function(inputFile, encoding){
+      out_dir <-'./';
+      rmarkdown::render(inputFile,
+                        encoding=encoding,
+                        output_file=file.path(dirname(inputFile), out_dir, './Proyecto.html')) })
+
+output: html_document
+---
+
+
+## Procedimiento parte 1:
+
+Se importa las librerías necesarias para desarrollar la implementación de la aplicación práctica utilizando el modelo de pronóstico ARIMA.
+
+```{python}
+import pandas as pd
+import matplotlib.pyplot as plt
+from statsmodels.tsa.stattools import adfuller
+from pmdarima import auto_arima
+import numpy as np
+from statsmodels.tsa.arima_model import ARIMA
+```
+
+Clase pronóstico que se encarga de manipular, cargar, realizar diversos cálculos a los datos de entrada de tipo .csv para aplicar la funcionalidad del método ARIMA y realizar los pronósticos respectivos.
+```{python}
+class pronostico():
+
+    def __init__(self, lista):
+        self.__lista=lista
+
+
+#Función que recibe datos y los carga. Utilizando la librería pandas se carga y lee el archivo AMD.csv respectivo que contiene los datos requeridos para predecir el valor de cierre de las acciones de la empresa AMD.
+
+    def cargar_archivo(self):
+        valores_acciones=pd.read_csv(self.__lista,index_col='Date',parse_dates=True)
+        return valores_acciones
+
+
+#Toda fila que contenga entradas nulas se procede a eliminar utilizando la función de pandas "dropna".
+    def borrar_vacias(self):
+        valores_acciones=self.cargar_archivo()
+        return valores_acciones.dropna()
+
+#Se imprime el tamaño de el archivo csv mediante la función shape, haciendo manipulación de la información en su forma de dataframe.
+
+    def imprimir_dimension(self):
+        valores_acciones=self.borrar_vacias()
+        print('Dimension',valores_acciones.shape)
+        valores_acciones.head()
+        print(valores_acciones)
+        valores_acciones['Close'].plot(figsize=(10,5))
+        plt.show()
+
+#Con la función adfuller se obtiene el valor del parámetro "p" el cual es necesario para evaluar si la serie se puede tratar como estacionaria o no. Esto depende de si el valor es pequeño o no. Esta función retorna un arreglo, a partir del cual se puede obtener distintos valores, como el ADF, el número de retrasos, y el número de observaciones utilizadas para hacer las regresiones de ADF.
+#Además se muestra los valores críticos que corresponden al 1%, 5% y 10%, los valores críticos descendentes nos indican que probablemente la serie no sea estacionaria, teniendo dicho conocimiento podemos darnos cuenta del comportamiento de los datos elegidos y a partir de esto evaluar su condición.
+    def calculo_aic(self):
+        valores_acciones=self.borrar_vacias()
+        test = adfuller(valores_acciones['Close'], autolag = 'AIC')
+        print("1. ADF : ",test[0])
+        print("2. Valor P : ", test[1])
+        print("3. Cantidad de retrasos : ", test[2])
+        print("4. Cantidad de observaciones usadas para la regresión de ADF:",      test[3])
+        print("5. Valores críticos :")
+        for key, value in test[4].items():
+            print("\t",key, ": ", value)
+
+
+#La función auto ARIMA nos genera los valores óptimos de la serie por sí sola, con el objetivo de lograr un mejor resultado y análisis de prónostico de los datos. Esto se aplica a la columna de intéres "Close" que es con la que se está implementando los métodos de forecasting.
+
+    def calculo_modelo(self):
+        valores_acciones=self.borrar_vacias()
+        modelo = auto_arima(valores_acciones['Close'], trace=True, suppress_warnings=True)
+        print(valores_acciones.shape)
+
+
+
+#Procedemos con la impresión y la utilización de la función iloc, en el caso de inicio se hace la selección de las primeras 50 filas y del final se selecciona las últimas 50 filas 
+    def tomar_datos(self):
+      valores_acciones=self.borrar_vacias()
+      inicio=valores_acciones.iloc[:-50]
+      final=valores_acciones.iloc[-50:]
+      print(inicio.shape,final.shape)
+      return inicio, final
+
+
+#Aplicamos la función ARIMA a la columna Close de "inicio" con el objetivo de obtener el pronóstico del valor que tendrá los activos a lo largo del tiempo.
+    def metodo_arima(self):
+      inicio, final= self.tomar_datos()
+      model=ARIMA(inicio['Close'],order=(1,1,0))
+      model=model.fit()
+      model.summary()
+      return model
+
+
+
+
+#Función que se encarga de calcular los residuos de los valores predecidos
+    def calculo_residuos(self):
+      model=self.metodo_arima()
+      residuos = pd.DataFrame(model.resid)
+      residuos.plot()
+      plt.show()
+      return residuos
+
+
+#Función que imprime los residuos de los valores obtenidos con la predicción.
+    def calculo_densidad(self):
+      residuos=self.calculo_residuos()
+      residuos.plot(kind='kde')
+      plt.show()
+      print(residuos.describe())
+
+
+#Para realizar la respectiva impresión o ploteo de los resultados se define un inicio y un fin a partir de los dataframes "inicio" y "final" obtenidos anteriormente. Se agrega leyendas a la gráfica por mostrar y se muestra el plot finalmente.
+    def imprimir_prediccion(self):
+      model=self.metodo_arima()
+      inicio, final= self.tomar_datos()
+      prediccion=model.predict(typ='levels').rename('Predicciones ARIMA')
+      prediccion.plot(legend=True)
+      inicio['Close'].plot(legend=True)
+      plt.show()
+      return prediccion
+
+
+
+#Se invoca los métodos pertenecientes al objeto tipo pronostico, se realiza cálculos, impresiones, estimaciones y demás.
+forecasting= pronostico('./AMD.csv')
+forecasting.imprimir_dimension()
+forecasting.calculo_aic()
+forecasting.calculo_modelo()
+forecasting.tomar_datos()
+forecasting.metodo_arima()
+forecasting.imprimir_prediccion()
+forecasting.calculo_residuos()
+forecasting.calculo_densidad()
+```
+
+
